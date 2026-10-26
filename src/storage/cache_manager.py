@@ -9,7 +9,7 @@ def file_exists(file_path: str):
     return os.path.exists(file_path) and os.path.isfile(file_path)
 
 
-class CacheManager:
+class MemoryManager:
     def __init__(self, base_dir: str = "data"):
         self.base_dir = base_dir
         ensure_dir(self.base_dir)
