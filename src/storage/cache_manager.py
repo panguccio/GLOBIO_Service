@@ -13,6 +13,20 @@ class CacheManager:
     def __init__(self, base_dir: str = "data"):
         self.base_dir = base_dir
 
+    def check_cache(self, target_files: list):
+        existing_files = []
+        for (root, dirs, files) in os.walk('data'):
+            for file in files:
+                existing_files.append(file)
+
+
+        wmo_to_download = [wmo for wmo in target_files if wmo not in existing_files]
+
+        wmos = [file_name.split("_")[0][2:] for file_name in wmo_to_download]
+        cycles = [file_name.split("_")[1].split(".")[0][:3] for file_name in wmo_to_download]
+
+        return wmos, cycles
+
     def save_data(self, profiles):
         n_profiles = profiles.sizes['N_PROF']
 
