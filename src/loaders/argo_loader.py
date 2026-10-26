@@ -4,6 +4,7 @@ import argopy
 from argopy import ArgoIndex, DataFetcher
 
 class BaseArgoLoader():
+
     @abstractmethod
     def fetch_profiles(self, mode, params, region, backend):
         pass
@@ -12,6 +13,14 @@ class BaseArgoLoader():
 class ArgopyLoader(BaseArgoLoader):
 
     def __init__(self):
+
+        # Argopy fresh start
+        import argopy
+        argopy.reset_options()
+        argopy.clear_cache()
+        argopy.set_options(cachedir='argopy-cache')
+
+        # Initialization of the index
         self.idx = ArgoIndex(index_file="bgc-s")
         self.idx.load()
 
