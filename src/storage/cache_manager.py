@@ -35,12 +35,6 @@ class CacheManager:
                             continue
         return existing
 
-        wmo_to_download = [wmo for wmo in target_files if wmo not in existing_files]
-
-        wmos = [file_name.split("_")[0][2:] for file_name in wmo_to_download]
-        cycles = [file_name.split("_")[1].split(".")[0][:3] for file_name in wmo_to_download]
-
-        return wmos, cycles
 
     def save_data(self, profiles):
         """Saves the profiles in memory in the correct format."""
@@ -49,11 +43,7 @@ class CacheManager:
 
         n_profiles = profiles.sizes['N_PROF']
 
-        if not (os.path.exists(self.base_dir) and os.path.isdir(self.base_dir)):
-            os.makedirs(self.base_dir)
-
         for i in range(n_profiles):
-
             profile = profiles.isel(N_PROF=i)
             wmo = str(profile['PLATFORM_NUMBER'].values.item())
             cycle = int(profile['CYCLE_NUMBER'].values.item())
