@@ -12,13 +12,28 @@ def file_exists(file_path: str):
 class CacheManager:
     def __init__(self, base_dir: str = "data"):
         self.base_dir = base_dir
+        ensure_dir(self.base_dir)
 
-    def check_cache(self, target_files: list):
-        existing_files = []
-        for (root, dirs, files) in os.walk('data'):
-            for file in files:
-                existing_files.append(file)
+    def get_existing_profiles(self) -> set:
+        """Scans the base dir and returns the set of (wmo, cyc) tuples already in memory."""
+        existing = set()
+        if not os.path.exists(self.base_dir):
+            return existing
 
+        for wmo_dir in os.listdir(self.base_dir):
+            wmo_path = os.path.join(self.base_dir, wmo_dir)
+            if os.path.isdir(wmo_path):
+                for file in os.listdir(wmo_path):
+                    if file.endswith(".nc"):
+                        try:
+                            # Name file example: SD5901234_001.nc
+                            parts = file.split("_")
+                            wmo = parts[0][2:]  # Rimuove 'SD'
+                            cycle = int(parts[1].split(".")[0])
+                            existing.add((str(wmo), int(cycle)))
+                        except Exception:
+                            continue
+        return existing
 
         wmo_to_download = [wmo for wmo in target_files if wmo not in existing_files]
 
@@ -28,6 +43,10 @@ class CacheManager:
         return wmos, cycles
 
     def save_data(self, profiles):
+        """Saves the profiles in memory in the correct format."""
+        if profiles is None:
+            return
+
         n_profiles = profiles.sizes['N_PROF']
 
         if not (os.path.exists(self.base_dir) and os.path.isdir(self.base_dir)):
@@ -36,22 +55,16 @@ class CacheManager:
         for i in range(n_profiles):
 
             profile = profiles.isel(N_PROF=i)
-            wmo = profile['PLATFORM_NUMBER'].values.item()
-            cycle = profile['CYCLE_NUMBER'].values.item()
+            wmo = str(profile['PLATFORM_NUMBER'].values.item())
+            cycle = int(profile['CYCLE_NUMBER'].values.item())
 
-            folder = os.path.join(self.base_dir, str(wmo))
+            folder = os.path.join(self.base_dir, wmo)
             ensure_dir(folder)
 
-            # every cycle of a platform is a separate netcdf file in the corresponding wmo folder
-            file_path = os.path.join(folder, f"SD{wmo}_{f"{cycle:03d}"}.nc")
+            file_path = os.path.join(folder, f"SD{wmo}_{cycle:03d}.nc")
 
             if file_exists(file_path):
-                print(f"{file_path} already in memory.")
                 continue
 
-            print(f"Saving in {file_path}")
-
-            # if the format is wrong, this method has to change
-
+            print(f"Saving: {file_path}")
             profile.to_netcdf(path=file_path, format="NETCDF4")
-
