@@ -4,7 +4,6 @@ import argopy
 from argopy import ArgoIndex, DataFetcher
 
 class BaseArgoLoader():
-
     @abstractmethod
     def fetch_profiles(self, mode, params, region, backend):
         pass
@@ -13,22 +12,13 @@ class BaseArgoLoader():
 class ArgopyLoader(BaseArgoLoader):
 
     def __init__(self):
-        # 'bgc-s': profili BGC sintetici (Sprof), con tutti i parametri biogeochimici già raccolti
-        # e interpolati sulla stessa griglia di pressione.
-        # L’indice si può caricare una volta sola.
         self.idx = ArgoIndex(index_file="bgc-s")
+        self.idx.load()
 
-    def get_index(self, box):
-        # why does it not find query?
+    def get_index_box(self, box):
+        """Returns the dataframe for the box-area of interest."""
         self.idx.query.box(box)
-        data_idx = self.idx.to_dataframe()
-        # self.idx.to_indexfile("search_index.txt")
-        return data_idx
-
-    def idx_subset(self, wmos, cycles):
-        self.idx.query.wmo_cyc(wmos, cycles)
-        data_idx = self.idx.to_dataframe()
-        return data_idx
+        return self.idx.to_dataframe()
 
     def fetch_profiles(self, params: list, region: list, mode: str = "standard", backend: str = "pyarrow"):
         if backend == "pyarrow":
