@@ -3,3 +3,6 @@ gsw~=3.6.23
 pyarrow
 netCDF4~=1.7.5
 numpy~=2.5.4
+torch~=2.14.1
+xarray~=2026.9.0
+pandas~=3.0.6
