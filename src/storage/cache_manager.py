@@ -41,6 +41,7 @@ class MemoryManager:
         return existing
 
     def save_netcdf(self, profiles):
+    def save_netcdf(self, profiles, replace=True):
         """Saves the profiles in memory in the correct format."""
         if profiles is None:
             return
@@ -50,19 +51,21 @@ class MemoryManager:
 
         for i in range(n_profiles):
             profile = profiles.isel(N_PROF=i)
+            mode = str(profile['DOXY_DATA_MODE'].values.item())
+            if mode == "A": mode = "D"
             wmo = str(profile['PLATFORM_NUMBER'].values.item())
             cycle = int(profile['CYCLE_NUMBER'].values.item())
 
             folder = os.path.join(self.base_dir, wmo)
             ensure_dir(folder)
 
-            file_path = os.path.join(folder, f"SD{wmo}_{cycle:03d}.nc")
+            file_path = os.path.join(folder, f"S{mode}{wmo}_{cycle:03d}.nc")
 
-            if file_exists(file_path):
-                print(f"{file_path} already in memory.")
+            if file_exists(file_path) and not replace:
+                print(f"{file_path} SKIPPED: already in memory.")
                 continue
 
-            print(f"Saving: {file_path}")
+            print(f"{file_path} SAVED.")
             profile.to_netcdf(path=file_path, format="NETCDF4")
 
 
