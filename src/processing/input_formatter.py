@@ -21,7 +21,7 @@ def encode_sample(data: xr.Dataset, data_file: str, attributes: list):
 
 class WmoDataset(torch.utils.data.Dataset):
 
-    def __init__(self, data_files: set, attributes: list):
+    def __init__(self, data_files: list, attributes: list):
         self.dataset = []
         for data_file in data_files:
             data = xr.open_dataset(data_file)
