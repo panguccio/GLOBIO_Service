@@ -26,6 +26,7 @@ def convert_argo_to_standard(ds_argo, metadata=None):
     cycle = ds_argo['CYCLE_NUMBER'].values.astype(np.int64)
     lons = ds_argo['LONGITUDE'].values.astype(np.float64)
     lats = ds_argo['LATITUDE'].values.astype(np.float64)
+    data_mode = ds_argo['DOXY_DATA_MODE'].values
 
     ds_out = xr.Dataset(
         data_vars={
@@ -47,6 +48,8 @@ def convert_argo_to_standard(ds_argo, metadata=None):
             'LONGITUDE': (('N_PROF',), lons),
             'LATITUDE': (('N_PROF',), lats),
 
+            'DOXY_DATA_MODE': (('N_PROF',), data_mode),
+
             # --- DOXY ---
             'DOXY': (
                 ('N_PROF', 'nDOXY'),
@@ -54,7 +57,7 @@ def convert_argo_to_standard(ds_argo, metadata=None):
                 {'variable': 'DOXY', 'units': 'mmol/m3'},
             ),
             'PRES_DOXY': (
-                ('N_PROF', 'nTEMP'),
+                ('N_PROF', 'nDOXY'),
                 ds_argo['PRES'].values,
             ),
 
