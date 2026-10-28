@@ -1,4 +1,5 @@
 import os
+import xarray as xr
 
 
 def ensure_dir(directory: str):
@@ -22,7 +23,7 @@ class MemoryManager:
         self.base_dir = base_dir
         ensure_dir(self.base_dir)
 
-    def get_existing_profiles(self) -> set:
+    def get_profiles_paths(self) -> set:
         """Scans the base dir and returns the set of paths."""
         existing = set()
         if not os.path.exists(self.base_dir):
@@ -40,8 +41,44 @@ class MemoryManager:
                             continue
         return existing
 
-    def save_netcdf(self, profiles):
-    def save_netcdf(self, profiles, replace=True):
+    def load_profiles(self):
+        """Loads the profiles from memory, transforming netcdf files into a xarray.Dataset."""
+
+        file_paths = list(self.get_profiles_paths())
+
+        if not file_paths:
+            print('Loading profiles failed: no profiles found.')
+            return None
+
+        print(f'Loading {len(file_paths)} profiles from memory...')
+
+        datasets = []
+
+        for file_path in file_paths:
+            ds = self.load_profile(file_path)
+            datasets.append(ds)
+
+        try:
+            ds_combined = xr.concat(datasets, dim='N_PROF', coords="different", compat="equals")
+            for ds in datasets:
+                ds.close()
+            return ds_combined
+
+        except Exception as e:
+            print(f"Error during concatenation of datasets: {e}")
+            return None
+
+    # credo possa avere senso poter cercare anche solo per wmo e cycle, usando il base dir
+    def load_profile(self, path):
+
+        try:
+            ds = xr.open_dataset(path)
+            return ds
+        except Exception as e:
+            print(f"Loading profile {path} failed: {e}")
+            return None
+
+    def save_profiles(self, profiles, replace=True):
         """Saves the profiles in memory in the correct format."""
         if profiles is None:
             return
