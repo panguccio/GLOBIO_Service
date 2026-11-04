@@ -57,22 +57,30 @@ class MemoryManager:
         datasets = []
 
         for file_path in file_paths:
-            ds = self.load_profile(file_path)
-            datasets.append(ds)
+            with xr.open_dataset(file_path) as ds:
+                profile = ds.load()
+            datasets.append(profile)
 
         try:
-            ds_combined = xr.concat(datasets, dim='N_PROF', coords="different", compat="equals")
+            ds_combined = xr.concat(
+                datasets,
+                dim='N_PROF',
+                data_vars='minimal',
+                coords='minimal',
+                compat='override'
+            )
             for ds in datasets:
                 ds.close()
             return ds_combined
 
         except Exception as e:
             print(f"Error during concatenation of datasets: {e}")
-            return None
+            return datasets
 
     # credo possa avere senso poter cercare anche solo per wmo e cycle, usando il base dir
 
     def load_profile(self, path):
+        "Returns profile given as WMO_CYCLE.nc"
         if not path.endswith(".nc"):
             path = ".".join([path, ".nc"])
         try:
