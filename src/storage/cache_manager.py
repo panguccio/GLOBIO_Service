@@ -1,3 +1,4 @@
+import glob
 import os
 import xarray as xr
 
@@ -19,8 +20,9 @@ def deformat_path(file):
 
 
 class MemoryManager:
-    def __init__(self, base_dir: str = "data"):
-        self.base_dir = base_dir
+    def __init__(self, dir_name: str = "data_unlabeled"):
+
+        self.base_dir = os.path.join("data", dir_name)
         ensure_dir(self.base_dir)
 
     def get_profiles_paths(self) -> set:
@@ -69,11 +71,22 @@ class MemoryManager:
             return None
 
     # credo possa avere senso poter cercare anche solo per wmo e cycle, usando il base dir
-    def load_profile(self, path):
 
+    def load_profile(self, path):
+        if not path.endswith(".nc"):
+            path = ".".join([path, ".nc"])
         try:
-            ds = xr.open_dataset(path)
-            return ds
+            search_pattern = os.path.join(self.base_dir, "**", "*" + path)
+            matches = glob.glob(search_pattern, recursive=True)
+
+            if not matches:
+                raise FileNotFoundError(f"Profile '{search_pattern}' not found.")
+
+            target_path = matches[0]
+
+            with xr.open_dataset(target_path) as ds:
+                return ds.load()
+
         except Exception as e:
             print(f"Loading profile {path} failed: {e}")
             return None
