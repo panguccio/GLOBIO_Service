@@ -38,8 +38,9 @@ def plot_similar_comparison(
     name_profiles: Dict[str, xr.Dataset],
     attr: str = "DOXY",
     title: str = "",
-    reference: str = "STANDARD"
+    reference: str = None,
 ):
+    if reference is None: reference = list(name_profiles.keys())[0]
     fig, (ax_abs, ax_diff) = plt.subplots(
         1, 2,
         figsize=(11, 8),
@@ -167,16 +168,18 @@ def plot_similar_comparison(
 
     fig.tight_layout()
 
+    folder = os.path.join(" vs ".join(list(name_profiles.keys())).lower(), title)
+
     file_name = (
         f"{title}_{attr}_comparison.png"
         if title else f"{attr}_comparison.png"
     )
 
-    save_plot(fig, file_name, title)
+    save_plot(fig, file_name, folder)
 
 
-def save_plot(fig, file_name, title=""):
-    output_dir = os.path.join("graphics/plots", title)
+def save_plot(fig, file_name, folder=""):
+    output_dir = os.path.join("graphics/plots", folder)
     os.makedirs(output_dir, exist_ok=True)
     path = os.path.join(output_dir, file_name)
     fig.savefig(path)
