@@ -5,7 +5,7 @@ def convert_mmol(data):
     # method to convert doxy and nitrate from micromole/Kg to mmol/m3
     ds = data.copy()
 
-    # aligns all variables with the same dimensions.
+    # aligns all variables with the same dimensions
     psal, pres, lon, lat, temp = xr.broadcast(
         ds['PSAL'], ds['PRES'], ds['LONGITUDE'], ds['LATITUDE'], ds['TEMP']
     )
@@ -18,11 +18,6 @@ def convert_mmol(data):
 
     try:
         ds['NITRATE'] = ds['NITRATE'] * density / 1000
-    except KeyError:
-        pass
-
-    try:
-        ds['CHLA'] = ds['CHLA'] * density / 1000
     except KeyError:
         pass
 
