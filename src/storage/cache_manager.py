@@ -44,7 +44,8 @@ class MemoryManager:
         return existing
 
     def load_profiles(self):
-        """Loads the profiles from memory, transforming netcdf files into a xarray.Dataset."""
+        """Loads the profiles from memory, transforming netcdf files into a xarray.Dataset.
+        If it fails, it returns the dictionary with all the profiles."""
 
         file_paths = list(self.get_profiles_paths())
 
@@ -82,8 +83,9 @@ class MemoryManager:
     def load_profile(self, path):
         "Returns profile given as WMO_CYCLE.nc"
         if not path.endswith(".nc"):
-            path = ".".join([path, ".nc"])
+            path = ".".join([path, "nc"])
         try:
+            # searches for that netcdf in any directory
             search_pattern = os.path.join(self.base_dir, "**", "*" + path)
             matches = glob.glob(search_pattern, recursive=True)
 
