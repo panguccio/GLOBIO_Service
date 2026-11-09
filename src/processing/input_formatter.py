@@ -6,13 +6,13 @@ from datetime import datetime
 
 
 def encode_sample(data: xr.Dataset, data_file: str, attributes: list):
-    sample = {}
+    sample = {"name": data_file,
+              "year": (format_time(data))[0],
+              "day": (format_time(data))[1],
+              "space": format_space(data),
+              "target_variable": None,
+              "device_name": None}
 
-    sample["name"] = data_file
-    sample["year"], sample["day"] = format_time(data)
-    sample["space"] = format_space(data)
-    sample["target_variable"] = None
-    sample["device_name"] = None
     format_attributes(data_file, attributes, data, sample)
 
 
