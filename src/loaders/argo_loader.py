@@ -12,13 +12,12 @@ class BaseArgoLoader():
 
 class ArgopyLoader(BaseArgoLoader):
 
-    def __init__(self):
-
+    def __init__(self, cache_dir = "data/argopy-cache"):
         # Argopy fresh start
         import argopy
         argopy.reset_options()
         argopy.clear_cache()
-        argopy.set_options(cachedir='argopy-cache')
+        argopy.set_options(cachedir=cache_dir)
 
         # Initialization of the index
         self.idx = ArgoIndex(index_file="bgc-s")
@@ -29,11 +28,11 @@ class ArgopyLoader(BaseArgoLoader):
         self.idx.query.box(box)
         return self.idx.to_dataframe()
 
-    def fetch_profiles(self, params: list, region: list, mode: str = "standard", backend: str = "pyarrow"):
+    def fetch_profiles(self, params: list, region: list, mode: str = "standard", backend: str = "pyarrow", cache = True):
         if backend == "pyarrow":
-            df = DataFetcher(mode=mode, ds='bgc', params=params, indexfs=self.idx, parallel=True).region(region)
+            df = DataFetcher(mode=mode, ds='bgc', params=params, indexfs=self.idx, parallel=True, cache=cache).region(region)
         elif backend == "pandas":
-            df = DataFetcher(mode=mode, ds='bgc', params=params, parallel=True).region(region)
+            df = DataFetcher(mode=mode, ds='bgc', params=params, parallel=True, cache=cache).region(region)
         else:
             raise NotImplementedError
         print("Downloading profiles... This might take a while...")
