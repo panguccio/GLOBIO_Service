@@ -1,149 +1,130 @@
-import os
 import xarray as xr
 import re
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 _PROFILE_RE = re.compile(r"^S(?P<mode>[DR])(?P<wmo>\d+)_(?P<cycle>\d+)\.nc$")
-_MODES = ("D", "R")
+_MODES = ("D", "R", "A")
 
-def ensure_dir(directory: str):
-    if not (os.path.exists(directory) and os.path.isdir(directory)):
-        os.makedirs(directory)
-
-def file_exists(file_path: str):
-    return os.path.exists(file_path) and os.path.isfile(file_path)
-
-
-def deformat_path(file):
-    # Name file example: SD5901234_001.nc
-    parts = file.split("_")
-    wmo = parts[0][2:]  # Rimuove 'SD'
-    cycle = int(parts[1].split(".")[0])
-    return wmo, cycle
-
-def parse_profile_filename(filename: str) -> tuple[int, int]:
-    """Returns (wmo, cycle) from a profile file name. Raises ValueError if invalid."""
-    match = _PROFILE_RE.match(Path(filename).name)
-    if match is None:
-        raise ValueError(f"Invalid profile file name: {filename!r}")
-    return match["wmo"], int(match["cycle"])
-
-def format_profile_filename(mode: str, wmo: int, cycle: int) -> str:
-    return f"S{mode}{wmo}_{int(cycle):03d}.nc"
 
 class MemoryManager:
+    """Class to save xr.Dataset profiles to netcdf files and to load them from memory."""
     def __init__(self, dir_name: str = "data_unlabeled"):
+        self.base_dir = Path("data", dir_name)
+        self.base_dir.mkdir(parents=True, exist_ok=True)
 
-        self.base_dir = os.path.join("data", dir_name)
-        ensure_dir(self.base_dir)
+    def load_profiles(self) -> xr.Dataset | list[xr.Dataset] | None:
+        """Loads the profiles from memory, concatenated along N_PROF.
+        Returns:
+            xr.Dataset -> the combined xr.Dataset
+            list[xr.Dataset] -> if the concatenation fails
+            None -> if no profiles are found
+        """
 
-    def get_profiles_paths(self) -> set:
-        """Scans the base dir and returns the set of paths."""
-        existing = set()
-        if not os.path.exists(self.base_dir):
-            return existing
-
-        for wmo_dir in os.listdir(self.base_dir):
-            wmo_path = os.path.join(self.base_dir, wmo_dir)
-            if os.path.isdir(wmo_path):
-                for file in os.listdir(wmo_path):
-                    if file.endswith(".nc"):
-                        try:
-                            wmo, cycle = deformat_path(file)
-                            existing.add(os.path.join(wmo_path, file))
-                        except Exception:
-                            continue
-        return existing
-
-    def load_profiles(self):
-        """Loads the profiles from memory, transforming netcdf files into a xarray.Dataset.
-        If it fails, it returns the dictionary with all the profiles."""
-
-        file_paths = list(self.get_profiles_paths())
+        file_paths = self.get_profiles_paths()
 
         if not file_paths:
-            print('Loading profiles failed: no profiles found.')
+            logger.warning("Loading profiles failed: no profiles found.")
             return None
 
-        print(f'Loading {len(file_paths)} profiles from memory...')
+        logger.info(f"Loading {len(file_paths)} profiles from {self.base_dir}...")
 
-        datasets = []
-
-        for file_path in file_paths:
-            with xr.open_dataset(file_path) as ds:
-                profile = ds.load()
-            datasets.append(profile)
+        datasets = [self._read_profile(path) for path in file_paths]
 
         try:
-            ds_combined = xr.concat(
+            return xr.concat(
                 datasets,
                 dim='N_PROF',
                 data_vars='minimal',
                 coords='minimal',
                 compat='override'
             )
-            for ds in datasets:
-                ds.close()
-            return ds_combined
 
         except Exception as e:
-            print(f"Error during concatenation of datasets: {e}")
+            logger.warning(f"Returned the list of datasets, instead of a single xr.Dataset.\nError during concatenation of datasets: {e}")
             return datasets
 
-    def _find_profile_path(self, wmo, cycle):
-        """Finds the file of a profile, regardless of the mode (D/R)."""
-        for mode in ["D", "R"]:
-            path = os.path.join(self.base_dir, str(wmo), f"S{mode}{wmo}_{int(cycle):03d}.nc")
-            if file_exists(path):
-                return path
-        return None
-
-    def load_profile(self, wmo, cycle):
+    def load_profile(self, wmo: int, cycle: int) -> xr.Dataset | None:
         """Loads a profile from a wmo+cycle couple, regardless of the mode (D/R)."""
         path = self._find_profile_path(wmo, cycle)
         if path is None:
-            print(f"Profile {wmo}_{cycle} not found.")
+            logger.warning(f"Profile {wmo}_{cycle} not found.")
             return None
         return self.load_profile_from_path(path)
 
-    @staticmethod
-    def load_profile_from_path(path):
-        """Carica un profilo da un path esatto."""
-        if not file_exists(path):
-            print(f"Loading profile failed: '{path}' does not exist.")
+    def load_profile_from_path(self, path: Path | str) -> xr.Dataset | None:
+        """Loads a profile from an exact path."""
+        path = Path(path)
+        if not path.is_file():
+            logger.warning(f"Loading profile failed: '{path}' does not exist.")
             return None
         try:
-            with xr.open_dataset(path) as ds:
-                return ds.load()
+            return self._read_profile(path)
         except Exception as e:
-            print(f"Loading profile {path} failed: {e}")
+            logger.error(f"Loading profile {path} failed: {e}")
             return None
 
-    def save_profiles(self, profiles, replace=True):
+    def save_profiles(self, profiles: xr.Dataset, replace: bool = True):
         """Saves the profiles in memory in the correct format."""
         if profiles is None:
             return
 
         n_profiles = profiles.sizes['N_PROF']
-        print(f"Saving {n_profiles} profiles...")
+        logger.info(f"Saving {n_profiles} profiles...")
 
         for i in range(n_profiles):
             profile = profiles.isel(N_PROF=i)
-            mode = str(profile['DOXY_DATA_MODE'].values.item())
-            if mode == "A": mode = "D"
-            wmo = str(profile['PLATFORM_NUMBER'].values.item())
-            cycle = int(profile['CYCLE_NUMBER'].values.item())
 
-            folder = os.path.join(self.base_dir, wmo)
-            ensure_dir(folder)
+            file_path = self._get_path_from_profile(profile)
 
-            file_path = os.path.join(folder, f"S{mode}{wmo}_{cycle:03d}.nc")
-
-            if file_exists(file_path) and not replace:
-                print(f"{file_path} SKIPPED: already in memory.")
+            if file_path.is_file() and not replace:
+                logger.info(f"{file_path} SKIPPED: already in memory.")
                 continue
 
-            print(f"{file_path} SAVED.")
+            file_path.parent.mkdir(parents=True, exist_ok=True)
             profile.to_netcdf(path=file_path, format="NETCDF4")
+            logger.info(f"{file_path} SAVED.")
 
+    def get_profiles_paths(self) -> list[Path]:
+        """Scans the base dir and returns the set of paths."""
+        return sorted([path for path in self.base_dir.glob("*/*.nc") if _PROFILE_RE.match(path.name)])
 
+    def get_profiles_list(self) -> list[tuple[int, int]]:
+        """Returns tuples wmo+cycle saved."""
+        return [self.parse_profile_filename(path) for path in self.get_profiles_paths()]
+
+    def _format_profile_path(self, mode: str, wmo: int, cycle: int) -> Path:
+        """Returns complete path from mode, wmo, cycle."""
+        return Path(self.base_dir, str(wmo), f"S{mode}{wmo}_{cycle:03d}.nc")
+
+    def _find_profile_path(self, wmo: int, cycle: int) -> Path | None:
+        """Finds the file of a profile, regardless of the mode (D/R)."""
+        for mode in _MODES:
+            path = self._format_profile_path(mode, wmo, cycle)
+            if path.is_file():
+                return path
+        return None
+
+    def _get_path_from_profile(self, profile: xr.Dataset) -> Path:
+        """Returns complete path from profile."""
+        mode = str(profile['DOXY_DATA_MODE'].values.item())
+        if mode == "A": mode = "D"
+        wmo = int(profile['PLATFORM_NUMBER'].values.item())
+        cycle = int(profile['CYCLE_NUMBER'].values.item())
+        return self._format_profile_path(mode, wmo, cycle)
+
+    @staticmethod
+    def _read_profile(file_path: Path) -> xr.Dataset:
+        """Opens a profile."""
+        with xr.open_dataset(file_path) as ds:
+            return ds.load()
+
+    @staticmethod
+    def parse_profile_filename(filename: Path) -> tuple[int, int]:
+        """Returns (wmo, cycle) from a profile file name."""
+        match = _PROFILE_RE.match(filename.name)
+        if match is None:
+            raise ValueError(f"Invalid profile file name: {filename!r}")
+        return int(match["wmo"]), int(match["cycle"])
