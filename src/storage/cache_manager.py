@@ -1,7 +1,10 @@
-import glob
 import os
 import xarray as xr
+import re
+from pathlib import Path
 
+_PROFILE_RE = re.compile(r"^S(?P<mode>[DR])(?P<wmo>\d+)_(?P<cycle>\d+)\.nc$")
+_MODES = ("D", "R")
 
 def ensure_dir(directory: str):
     if not (os.path.exists(directory) and os.path.isdir(directory)):
@@ -18,6 +21,15 @@ def deformat_path(file):
     cycle = int(parts[1].split(".")[0])
     return wmo, cycle
 
+def parse_profile_filename(filename: str) -> tuple[int, int]:
+    """Returns (wmo, cycle) from a profile file name. Raises ValueError if invalid."""
+    match = _PROFILE_RE.match(Path(filename).name)
+    if match is None:
+        raise ValueError(f"Invalid profile file name: {filename!r}")
+    return match["wmo"], int(match["cycle"])
+
+def format_profile_filename(mode: str, wmo: int, cycle: int) -> str:
+    return f"S{mode}{wmo}_{int(cycle):03d}.nc"
 
 class MemoryManager:
     def __init__(self, dir_name: str = "data_unlabeled"):
@@ -78,25 +90,31 @@ class MemoryManager:
             print(f"Error during concatenation of datasets: {e}")
             return datasets
 
-    # credo possa avere senso poter cercare anche solo per wmo e cycle, usando il base dir
+    def _find_profile_path(self, wmo, cycle):
+        """Finds the file of a profile, regardless of the mode (D/R)."""
+        for mode in ["D", "R"]:
+            path = os.path.join(self.base_dir, str(wmo), f"S{mode}{wmo}_{int(cycle):03d}.nc")
+            if file_exists(path):
+                return path
+        return None
 
-    def load_profile(self, path):
-        "Returns profile given as WMO_CYCLE.nc"
-        if not path.endswith(".nc"):
-            path = ".".join([path, "nc"])
+    def load_profile(self, wmo, cycle):
+        """Loads a profile from a wmo+cycle couple, regardless of the mode (D/R)."""
+        path = self._find_profile_path(wmo, cycle)
+        if path is None:
+            print(f"Profile {wmo}_{cycle} not found.")
+            return None
+        return self.load_profile_from_path(path)
+
+    @staticmethod
+    def load_profile_from_path(path):
+        """Carica un profilo da un path esatto."""
+        if not file_exists(path):
+            print(f"Loading profile failed: '{path}' does not exist.")
+            return None
         try:
-            # searches for that netcdf in any directory
-            search_pattern = os.path.join(self.base_dir, "**", "*" + path)
-            matches = glob.glob(search_pattern, recursive=True)
-
-            if not matches:
-                raise FileNotFoundError(f"Profile '{search_pattern}' not found.")
-
-            target_path = matches[0]
-
-            with xr.open_dataset(target_path) as ds:
+            with xr.open_dataset(path) as ds:
                 return ds.load()
-
         except Exception as e:
             print(f"Loading profile {path} failed: {e}")
             return None
